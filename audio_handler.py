@@ -36,31 +36,53 @@ class AudioHandler:
         self.loop_lengths = [0] * config.num_tracks
         self.recording = [False] * config.num_tracks
         self.playing = [False] * config.num_tracks  # Track playback state
+        
+        # List devices on startup
+        self.list_devices()
 
     def list_devices(self):
         """List available audio devices."""
         logger.info("Available audio devices:")
         for i in range(self.p.get_device_count()):
             info = self.p.get_device_info_by_index(i)
-            logger.info(f"{i}: {info['name']}")
+            logger.info(f"  Device {i}: {info['name']} (In: {info['maxInputChannels']}, Out: {info['maxOutputChannels']})")
 
     def start(self):
         """Start audio stream and processing thread."""
         try:
+            # Try to use USB device (usually index 2 or 3)
+            input_device = self.config.input_device_id
+            output_device = self.config.output_device_id
+            
+            # If not specified, auto-detect USB device
+            if input_device is None or output_device is None:
+                logger.info("Auto-detecting USB audio device...")
+                for i in range(self.p.get_device_count()):
+                    info = self.p.get_device_info_by_index(i)
+                    if 'USB' in info['name']:
+                        if input_device is None and info['maxInputChannels'] > 0:
+                            input_device = i
+                            logger.info(f"Using device {i} for input: {info['name']}")
+                        if output_device is None and info['maxOutputChannels'] > 0:
+                            output_device = i
+                            logger.info(f"Using device {i} for output: {info['name']}")
+            
+            logger.info(f"Opening stream with input_device={input_device}, output_device={output_device}")
+            
             self.stream = self.p.open(
                 format=pyaudio.paFloat32,
                 channels=self.config.channels,
                 rate=self.config.sample_rate,
                 input=True,
                 output=True,
-                input_device_index=self.config.input_device_id,
-                output_device_index=self.config.output_device_id,
+                input_device_index=input_device,
+                output_device_index=output_device,
                 frames_per_buffer=self.config.chunk_size,
                 stream_callback=self._audio_callback
             )
             self.stream.start_stream()
             self.running = True
-            logger.info("Audio stream started")
+            logger.info("Audio stream started successfully")
         except Exception as e:
             logger.error(f"Failed to start audio stream: {e}")
             raise
@@ -113,6 +135,7 @@ class AudioHandler:
             if self.recording[track_idx]:
                 # Record input to track buffer
                 self.track_buffers[track_idx].extend(input_data)
+                logger.debug(f"Recording on track {track_idx}: {len(input_data)} samples")
 
             # Playback recorded audio
             if self.playing[track_idx] and self.loop_lengths[track_idx] > 0:
@@ -150,6 +173,7 @@ class AudioHandler:
             # Set loop length on first recording
             if self.loop_lengths[track_idx] == 0:
                 self.loop_lengths[track_idx] = len(self.track_buffers[track_idx])
+                logger.info(f"Loop length for track {track_idx}: {self.loop_lengths[track_idx]} samples")
             logger.info(f"Recording stopped on track {track_idx}")
 
     def start_playback(self, track_idx):
