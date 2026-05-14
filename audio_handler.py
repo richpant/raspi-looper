@@ -35,6 +35,7 @@ class AudioHandler:
         self.current_positions = [0] * config.num_tracks
         self.loop_lengths = [0] * config.num_tracks
         self.recording = [False] * config.num_tracks
+        self.playing = [False] * config.num_tracks  # Track playback state
 
     def list_devices(self):
         """List available audio devices."""
@@ -114,7 +115,7 @@ class AudioHandler:
                 self.track_buffers[track_idx].extend(input_data)
 
             # Playback recorded audio
-            if self.loop_lengths[track_idx] > 0:
+            if self.playing[track_idx] and self.loop_lengths[track_idx] > 0:
                 start_pos = self.current_positions[track_idx]
                 end_pos = min(start_pos + frame_count, self.loop_lengths[track_idx])
                 samples_to_play = end_pos - start_pos
@@ -151,6 +152,28 @@ class AudioHandler:
                 self.loop_lengths[track_idx] = len(self.track_buffers[track_idx])
             logger.info(f"Recording stopped on track {track_idx}")
 
+    def start_playback(self, track_idx):
+        """Start playback on a track.
+
+        Args:
+            track_idx: Index of track to play
+        """
+        if track_idx < self.config.num_tracks and self.loop_lengths[track_idx] > 0:
+            self.playing[track_idx] = True
+            self.current_positions[track_idx] = 0
+            logger.info(f"Playback started on track {track_idx}")
+
+    def stop_playback(self, track_idx):
+        """Stop playback on a track.
+
+        Args:
+            track_idx: Index of track to stop playing
+        """
+        if track_idx < self.config.num_tracks:
+            self.playing[track_idx] = False
+            self.current_positions[track_idx] = 0
+            logger.info(f"Playback stopped on track {track_idx}")
+
     def clear_track(self, track_idx):
         """Clear a track's buffer.
 
@@ -161,4 +184,5 @@ class AudioHandler:
             self.track_buffers[track_idx].clear()
             self.loop_lengths[track_idx] = 0
             self.current_positions[track_idx] = 0
+            self.playing[track_idx] = False
             logger.info(f"Track {track_idx} cleared")
