@@ -64,17 +64,17 @@ class LooperApp:
         """Handle play button press."""
         if action == "press":
             if self.audio_handler.loop_lengths[track_idx] > 0:
-                # Toggle playback by checking current position
-                if self.audio_handler.current_positions[track_idx] == 0 and \
-                   len(self.audio_handler.track_buffers[track_idx]) == 0:
-                    # Start playback
-                    self.led_handler.set_led(self.config.play_leds[track_idx], True)
-                    logger.info(f"Playback started on track {track_idx}")
-                else:
-                    # Stop playback
-                    self.audio_handler.current_positions[track_idx] = 0
+                # Toggle playback
+                if self.audio_handler.playing[track_idx]:
+                    self.audio_handler.stop_playback(track_idx)
                     self.led_handler.set_led(self.config.play_leds[track_idx], False)
                     logger.info(f"Playback stopped on track {track_idx}")
+                else:
+                    self.audio_handler.start_playback(track_idx)
+                    self.led_handler.set_led(self.config.play_leds[track_idx], True)
+                    logger.info(f"Playback started on track {track_idx}")
+            else:
+                logger.warning(f"No recording on track {track_idx}")
 
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
